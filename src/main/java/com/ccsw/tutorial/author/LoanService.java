@@ -1,6 +1,7 @@
 package com.ccsw.tutorial.author;
 
 import com.ccsw.tutorial.Loan.model.Loan;
+import com.ccsw.tutorial.Loan.model.LoanDto;
 import com.ccsw.tutorial.Loan.model.LoanSearchDto;
 import org.springframework.data.domain.Page;
 
@@ -13,4 +14,8 @@ public interface LoanService {
     List<Loan> findAll();
 
     Page<Loan> findPage(LoanSearchDto dto);
+
+    void save(Long id, LoanDto dto);
+
+    void delete(Long id) throws Exception;
 }

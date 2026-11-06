@@ -14,6 +14,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.annotation.DirtiesContext;
 
@@ -31,7 +32,9 @@ public class LoanIT {
     public static final String SERVICE_PATH = "/loan";
 
     private static final int TOTAL_LOANS = 6;
+    private static final Long MODIFY_LOAN_ID = 1L;
     private static int PAGE_SIZE = 5;
+    private static Long DELETE_LOAN_ID = 1L;
 
     @LocalServerPort
     private int port;
@@ -106,5 +109,73 @@ public class LoanIT {
 
         assertNotNull(response);
         assertEquals(newLoanSize, response.getBody().getTotalElements());
+
+    }
+
+    @Test
+    public void modifyWithExistIdShouldModifyLoan() {
+
+        LoanDto dto = new LoanDto();
+        ClientDto clientDto = new ClientDto();
+        clientDto.setId(1L);
+        GameDto gameDto = new GameDto();
+        gameDto.setId(1L);
+
+        dto.setId(MODIFY_LOAN_ID);
+        dto.setClient(clientDto);
+        dto.setGame(gameDto);
+        dto.setStartDate(LocalDate.of(2026, 10, 10));
+        dto.setEndDate(LocalDate.of(2026, 10, 13));
+
+        restTemplate.exchange(LOCALHOST + port + SERVICE_PATH + "/" + MODIFY_LOAN_ID, HttpMethod.PUT, new HttpEntity<>(dto), Void.class);
+
+        LoanSearchDto searchDto = new LoanSearchDto();
+        searchDto.setPageable(new PageableRequest(0, PAGE_SIZE));
+
+        ResponseEntity<ResponsePage<LoanDto>> response = restTemplate.exchange(LOCALHOST + port + SERVICE_PATH, HttpMethod.POST, new HttpEntity<>(searchDto), responseTypePage);
+
+        assertNotNull(response);
+        assertEquals(TOTAL_LOANS, response.getBody().getTotalElements());
+
+        LoanDto loan = response.getBody().getContent().stream().filter(item -> item.getId().equals(MODIFY_LOAN_ID)).findFirst().orElse(null);
+        assertNotNull(loan);
+        assertEquals(LocalDate.of(2026, 10, 10), loan.getStartDate());
+        assertEquals(LocalDate.of(2026, 10, 13), loan.getEndDate());
+    }
+
+    @Test
+    public void modifyWithNotExistIdShouldThrowException() {
+
+        Long NOT_EXISTS_GAME_ID = 0L;
+        LoanDto dto = new LoanDto();
+        dto.setId(NOT_EXISTS_GAME_ID);
+
+        ResponseEntity<?> response = restTemplate.exchange(LOCALHOST + port + SERVICE_PATH + "/" + NOT_EXISTS_GAME_ID, HttpMethod.PUT, new HttpEntity<>(dto), Void.class);
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+    }
+
+    @Test
+    public void deleteWithExistsIdSHouldDeleteLoan() {
+        long newLoanSize = TOTAL_LOANS - 1;
+
+        restTemplate.exchange(LOCALHOST + port + SERVICE_PATH + "/" + DELETE_LOAN_ID, HttpMethod.DELETE, null, Void.class);
+
+        LoanSearchDto searchDto = new LoanSearchDto();
+        searchDto.setPageable(new PageableRequest(0, PAGE_SIZE));
+
+        ResponseEntity<ResponsePage<LoanDto>> response = restTemplate.exchange(LOCALHOST + port + SERVICE_PATH, HttpMethod.POST, new HttpEntity<>(searchDto), responseTypePage);
+
+        assertNotNull(response);
+        assertEquals(newLoanSize, response.getBody().getTotalElements());
+    }
+
+    @Test
+    public void deleteWithNoExistsIdShouldThrowException() {
+        long deleteLoanId = TOTAL_LOANS + 1;
+
+        ResponseEntity<?> response = restTemplate.exchange(LOCALHOST + port + SERVICE_PATH + "/" + deleteLoanId, HttpMethod.DELETE, null, Void.class);
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
     }
 }

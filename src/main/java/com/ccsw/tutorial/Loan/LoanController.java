@@ -43,4 +43,17 @@ public class LoanController {
 
         return new PageImpl<>(page.getContent().stream().map(e -> mapper.map(e, LoanDto.class)).collect(Collectors.toList()), page.getPageable(), page.getTotalElements());
     }
+
+    @Operation(summary = "Save or Update", description = "Method that saves or updates a Loan")
+    @RequestMapping(path = { "", "/{id}" }, method = RequestMethod.PUT)
+    public void save(@PathVariable(name = "id", required = false) Long id, @RequestBody LoanDto dto) {
+
+        this.loanService.save(id, dto);
+    }
+
+    @Operation(summary = "Delete", description = "Method tha delete a loan.")
+    @RequestMapping(path = "/{id}", method = RequestMethod.DELETE)
+    public void delete(@PathVariable("id") Long id) throws Exception {
+        this.loanService.delete(id);
+    }
 }
