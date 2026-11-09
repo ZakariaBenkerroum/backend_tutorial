@@ -84,6 +84,35 @@ public class LoanIT {
     }
 
     @Test
+    public void findWithExistsClientIdShouldReturnLoansOfClient() {
+
+        LoanSearchDto searchDto = new LoanSearchDto();
+        searchDto.setPageable(new PageableRequest(0, PAGE_SIZE));
+        searchDto.setIdClient(1L);
+
+        ResponseEntity<ResponsePage<LoanDto>> response = restTemplate.exchange(LOCALHOST + port + SERVICE_PATH, HttpMethod.POST, new HttpEntity<>(searchDto), responseTypePage);
+
+        assertNotNull(response);
+        assertEquals(2, response.getBody().getTotalElements());
+    }
+
+    @Test
+    public void findWithDateBetweenLoanDatesShouldReturnLoan() {
+        int LOANS_WITH_FILTER = 1;
+
+        LoanSearchDto dto = new LoanSearchDto();
+        dto.setPageable(new PageableRequest(0, PAGE_SIZE));
+
+        LocalDate searchDate = LocalDate.parse("2026-11-03");
+        dto.setDate(searchDate);
+
+        ResponseEntity<ResponsePage<LoanDto>> response = restTemplate.exchange(LOCALHOST + port + SERVICE_PATH, HttpMethod.POST, new HttpEntity<>(dto), responseTypePage);
+
+        assertNotNull(response);
+        assertEquals(LOANS_WITH_FILTER, response.getBody().getContent().size());
+    }
+
+    @Test
     public void saveWithoutIdShouldCreateNewLoan() {
         long newLoanId = TOTAL_LOANS + 1;
         long newLoanSize = TOTAL_LOANS + 1;

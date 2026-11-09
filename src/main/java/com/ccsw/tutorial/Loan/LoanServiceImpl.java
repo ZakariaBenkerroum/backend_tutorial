@@ -6,10 +6,12 @@ import com.ccsw.tutorial.Loan.model.LoanSearchDto;
 import com.ccsw.tutorial.author.LoanService;
 import com.ccsw.tutorial.client.ClientRepository;
 import com.ccsw.tutorial.client.model.Client;
+import com.ccsw.tutorial.common.criteria.SearchCriteria;
 import com.ccsw.tutorial.game.GameRepository;
 import com.ccsw.tutorial.game.model.Game;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -38,7 +40,26 @@ public class LoanServiceImpl implements LoanService {
 
     @Override
     public Page<Loan> findPage(LoanSearchDto dto) {
-        return this.loanRepository.findAll(dto.getPageable().getPageable());
+
+        Specification<Loan> spec = Specification.where(null);
+
+        if (dto.getIdGame() != null) {
+            LoanSpecification gameSpec = new LoanSpecification(new SearchCriteria("game,id", ":", dto.getIdGame()));
+            spec = spec.and(gameSpec);
+        }
+
+        if (dto.getIdClient() != null){
+            LoanSpecification clientSpec = new LoanSpecification(new SearchCriteria("client.id", ":", dto.getIdClient()));
+            spec = spec.and(clientSpec);
+        }
+
+        if (dto.getDate() != null){
+            LoanSpecification startDateSpec = new LoanSpecification(new SearchCriteria("startDate", "<=" , dto.getDate()));
+            LoanSpecification endDateSpec = new LoanSpecification(new SearchCriteria("endDate", ">=", dto.getDate()));
+            spec = spec.and(startDateSpec).and(endDateSpec);
+        }
+
+        return this.loanRepository.findAll(spec, dto.getPageable().getPageable());
     }
 
     @Override
