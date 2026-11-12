@@ -12,7 +12,9 @@ import com.ccsw.tutorial.game.model.Game;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -44,17 +46,17 @@ public class LoanServiceImpl implements LoanService {
         Specification<Loan> spec = Specification.where(null);
 
         if (dto.getIdGame() != null) {
-            LoanSpecification gameSpec = new LoanSpecification(new SearchCriteria("game,id", ":", dto.getIdGame()));
+            LoanSpecification gameSpec = new LoanSpecification(new SearchCriteria("game.id", ":", dto.getIdGame()));
             spec = spec.and(gameSpec);
         }
 
-        if (dto.getIdClient() != null){
+        if (dto.getIdClient() != null) {
             LoanSpecification clientSpec = new LoanSpecification(new SearchCriteria("client.id", ":", dto.getIdClient()));
             spec = spec.and(clientSpec);
         }
 
-        if (dto.getDate() != null){
-            LoanSpecification startDateSpec = new LoanSpecification(new SearchCriteria("startDate", "<=" , dto.getDate()));
+        if (dto.getDate() != null) {
+            LoanSpecification startDateSpec = new LoanSpecification(new SearchCriteria("startDate", "<=", dto.getDate()));
             LoanSpecification endDateSpec = new LoanSpecification(new SearchCriteria("endDate", ">=", dto.getDate()));
             spec = spec.and(startDateSpec).and(endDateSpec);
         }
@@ -72,6 +74,11 @@ public class LoanServiceImpl implements LoanService {
             loan = this.loanRepository.findById(id).orElse(null);
         }
 
+        // CHecking if the range of dates:
+        if (dto.getStartDate() == null || dto.getEndDate() == null || dto.getStartDate().isAfter(dto.getEndDate())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El rango de fechas del préstamo no es válido.");
+        }
+
         loan.setStartDate(dto.getStartDate());
         loan.setEndDate(dto.getEndDate());
 
@@ -81,6 +88,21 @@ public class LoanServiceImpl implements LoanService {
 
         loan.setClient(client);
         loan.setGame(game);
+
+        //Checking the game, if at least one loan overlap with the range of dates, it rejects the oparation
+        // when we exclude the current ID, an update can save its changes without overlap
+        if (loanRepository.countOverlappingGameLoans(loan.getGame().getId(), loan.getStartDate(), loan.getEndDate(), loan.getId()) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El juego ya está prestado a otro cliente en esas fechas.");
+        }
+
+        long overlappingLoanPairs = loanRepository.countOverlappingClientLoanPairs(
+                loan.getClient().getId(),
+                loan.getStartDate(),
+                loan.getEndDate(),
+                loan.getId());
+        if (overlappingLoanPairs > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El cliente ya tiene 2 préstamos activos en alguna fecha del rango.");
+        }
 
         this.loanRepository.save(loan);
     }

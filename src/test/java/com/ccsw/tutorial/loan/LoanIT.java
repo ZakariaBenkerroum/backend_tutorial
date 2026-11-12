@@ -156,7 +156,8 @@ public class LoanIT {
         dto.setStartDate(LocalDate.of(2026, 10, 10));
         dto.setEndDate(LocalDate.of(2026, 10, 13));
 
-        restTemplate.exchange(LOCALHOST + port + SERVICE_PATH + "/" + MODIFY_LOAN_ID, HttpMethod.PUT, new HttpEntity<>(dto), Void.class);
+        ResponseEntity<Void> saveResponse = restTemplate.exchange(LOCALHOST + port + SERVICE_PATH + "/" + MODIFY_LOAN_ID, HttpMethod.PUT, new HttpEntity<>(dto), Void.class);
+        assertEquals(HttpStatus.OK, saveResponse.getStatusCode());
 
         LoanSearchDto searchDto = new LoanSearchDto();
         searchDto.setPageable(new PageableRequest(0, PAGE_SIZE));
@@ -170,6 +171,48 @@ public class LoanIT {
         assertNotNull(loan);
         assertEquals(LocalDate.of(2026, 10, 10), loan.getStartDate());
         assertEquals(LocalDate.of(2026, 10, 13), loan.getEndDate());
+    }
+
+    @Test
+    public void modifyShouldNotCountCurrentLoanWhenCheckingClientOverlap() {
+        LoanDto dto = createLoanDto(1L, 1L, "2020-10-02", "2020-10-04");
+
+        ResponseEntity<Void> response = restTemplate.exchange(
+                LOCALHOST + port + SERVICE_PATH + "/" + MODIFY_LOAN_ID,
+                HttpMethod.PUT,
+                new HttpEntity<>(dto),
+                Void.class);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+    }
+
+    @Test
+    public void saveShouldRejectSameGameOnAnOverlappingDate() {
+        LoanDto dto = createLoanDto(3L, 2L, "2026-11-06", "2026-11-10");
+
+        ResponseEntity<Void> response = saveLoan(dto);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    }
+
+    @Test
+    public void saveShouldRejectThirdConcurrentLoanForClient() {
+        assertEquals(HttpStatus.OK, saveLoan(createLoanDto(3L, 1L, "2026-12-01", "2026-12-05")).getStatusCode());
+        assertEquals(HttpStatus.OK, saveLoan(createLoanDto(3L, 2L, "2026-12-01", "2026-12-05")).getStatusCode());
+
+        ResponseEntity<Void> response = saveLoan(createLoanDto(3L, 3L, "2026-12-05", "2026-12-08"));
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    }
+
+    @Test
+    public void saveShouldAllowTwoLoansThatDoNotOverlapOnAnyDay() {
+        assertEquals(HttpStatus.OK, saveLoan(createLoanDto(3L, 1L, "2026-12-01", "2026-12-02")).getStatusCode());
+        assertEquals(HttpStatus.OK, saveLoan(createLoanDto(3L, 2L, "2026-12-05", "2026-12-06")).getStatusCode());
+
+        ResponseEntity<Void> response = saveLoan(createLoanDto(3L, 3L, "2026-12-01", "2026-12-06"));
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
     }
 
     @Test
@@ -206,5 +249,23 @@ public class LoanIT {
         ResponseEntity<?> response = restTemplate.exchange(LOCALHOST + port + SERVICE_PATH + "/" + deleteLoanId, HttpMethod.DELETE, null, Void.class);
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+    }
+
+    private LoanDto createLoanDto(Long clientId, Long gameId, String startDate, String endDate) {
+        LoanDto dto = new LoanDto();
+        ClientDto clientDto = new ClientDto();
+        clientDto.setId(clientId);
+        GameDto gameDto = new GameDto();
+        gameDto.setId(gameId);
+
+        dto.setClient(clientDto);
+        dto.setGame(gameDto);
+        dto.setStartDate(LocalDate.parse(startDate));
+        dto.setEndDate(LocalDate.parse(endDate));
+        return dto;
+    }
+
+    private ResponseEntity<Void> saveLoan(LoanDto dto) {
+        return restTemplate.exchange(LOCALHOST + port + SERVICE_PATH, HttpMethod.PUT, new HttpEntity<>(dto), Void.class);
     }
 }
